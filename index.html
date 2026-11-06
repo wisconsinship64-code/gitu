@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WNI MODE: Extreme RPG Turn-Based</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Font Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .title-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* Dynamic Rainbow / Chroma Cycling Animation */
+        @keyframes rainbowCycle {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+
+        .chroma-bg {
+            background: linear-gradient(135deg, #ff0055, #7a00ff, #00e5ff, #00ff66, #ff0055);
+            background-size: 400% 400%;
+            animation: gradientShift 8s infinite linear, rainbowCycle 12s infinite linear;
+        }
+
+        .chroma-border {
+            border-image: linear-gradient(45deg, #ff0055, #00e5ff, #00ff66, #ffcc00) 1;
+            animation: rainbowCycle 5s infinite linear;
+        }
+
+        .chroma-text {
+            background: linear-gradient(90deg, #ff0055, #00ffff, #00ff66, #ffcc00, #ff0055);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: textShine 3s linear infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes textShine {
+            to { background-position: 200% center; }
+        }
+
+        /* Screen Shake Effect */
+        .shake {
+            animation: shakeAnim 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shakeAnim {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col justify-center items-center p-2 sm:p-4 overflow-x-hidden">
+
+    <!-- Container Utama App Mobile-First -->
+    <div class="w-full max-w-md bg-slate-900/90 border-2 border-slate-700/80 rounded-2xl shadow-2xl flex flex-col h-[95vh] max-h-[850px] overflow-hidden relative backdrop-blur-md">
+
+        <!-- Dynamic Rainbow Header Accent -->
+        <div class="h-2 chroma-bg w-full"></div>
+
+        <!-- Header Controls & Stage Info -->
+        <header class="p-3 bg-slate-950/80 border-b border-slate-800 flex justify-between items-center z-10">
+            <div>
+                <span class="text-xs text-slate-400 font-bold uppercase tracking-wider block">Mode Tingkat Kesulitan</span>
+                <h1 id="stage-title" class="title-font text-lg font-extrabold chroma-text">STAGE 1: STANDARD</h1>
+            </div>
+            <div class="text-right">
+                <span id="turn-badge" class="px-2.5 py-1 bg-indigo-900/60 border border-indigo-500/50 text-indigo-300 rounded-full text-xs font-bold uppercase tracking-widest">
+                    GILIRAN ANDA
+                </span>
+            </div>
+        </header>
+
+        <!-- Battle Visual Arena -->
+        <div id="arena" class="relative flex-1 bg-slate-950/60 p-4 flex flex-col justify-between overflow-hidden">
+            
+            <!-- Dynamic Background Glow -->
+            <div class="absolute inset-0 opacity-10 pointer-events-none chroma-bg"></div>
+
+            <!-- Boss AI Card -->
+            <div id="boss-card" class="relative z-10 bg-slate-900/90 border border-red-500/30 rounded-xl p-3 shadow-lg transition-all duration-300">
+                <div class="flex justify-between items-center mb-1">
+                    <div class="flex items-center gap-2">
+                        <span id="boss-avatar" class="text-2xl">🤖</span>
+                        <div>
+                            <h2 id="boss-name" class="font-bold text-red-400 text-sm sm:text-base leading-tight">AI Bot Mk.I</h2>
+                            <p id="boss-subtitle" class="text-[10px] text-slate-400">Target Simulasi</p>
+                        </div>
+                    </div>
+                    <span id="boss-hp-text" class="text-xs font-mono font-bold text-slate-300">100 / 100</span>
+                </div>
+                <!-- Health Bar Boss -->
+                <div class="w-full bg-slate-950 rounded-full h-3 p-0.5 border border-slate-800">
+                    <div id="boss-hp-bar" class="bg-gradient-to-r from-red-600 to-rose-500 h-full rounded-full transition-all duration-300" style="width: 100%;"></div>
+                </div>
+                <div id="boss-status-effects" class="flex gap-1 mt-1.5 min-h-[18px]"></div>
+            </div>
+
+            <!-- Visual Battlefield Effect Divider -->
+            <div class="my-auto flex justify-center items-center relative py-2">
+                <div id="versus-icon" class="text-2xl font-black title-font text-slate-700/50">VS</div>
+                <div id="battle-effect" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200">
+                    <span id="effect-text" class="text-3xl font-black text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.8)]"></span>
+                </div>
+            </div>
+
+            <!-- Player Card -->
+            <div id="player-card" class="relative z-10 bg-slate-900/90 border border-cyan-500/30 rounded-xl p-3 shadow-lg transition-all duration-300">
+                <div class="flex justify-between items-center mb-1">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🛡️</span>
+                        <div>
+                            <h2 class="font-bold text-cyan-400 text-sm sm:text-base leading-tight">Pemain Cyber</h2>
+                            <p class="text-[10px] text-slate-400">Warga Kode Indonesia</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span id="player-hp-text" class="text-xs font-mono font-bold text-slate-300 block">100 / 100</span>
+                        <span id="player-mp-text" class="text-[10px] font-mono font-bold text-cyan-400">MP: 50/50</span>
+                    </div>
+                </div>
+                <!-- Health Bar Player -->
+                <div class="w-full bg-slate-950 rounded-full h-3 p-0.5 border border-slate-800 mb-1.5">
+                    <div id="player-hp-bar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300" style="width: 100%;"></div>
+                </div>
+                <!-- Mana Bar Player -->
+                <div class="w-full bg-slate-950 rounded-full h-1.5 p-0.5 border border-slate-800">
+                    <div id="player-mp-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full rounded-full transition-all duration-300" style="width: 100%;"></div>
+                </div>
+                <div id="player-status-effects" class="flex gap-1 mt-1.5 min-h-[18px]"></div>
+            </div>
+
+        </div>
+
+        <!-- Combat Log (Mobile Scrollable) -->
+        <div class="h-28 bg-slate-950 border-t border-b border-slate-800 p-2.5 overflow-y-auto font-mono text-xs flex flex-col-reverse" id="log-container">
+            <div id="combat-log" class="space-y-1"></div>
+        </div>
+
+        <!-- Action Command Buttons -->
+        <div class="p-3 bg-slate-950/90 gap-2 grid grid-cols-2 z-10">
+            <!-- Attack -->
+            <button id="btn-attack" onclick="playerAction('attack')" class="p-3 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white rounded-xl font-bold flex flex-col items-center justify-center shadow-lg active:scale-95 transition-all border border-red-500/40">
+                <span class="text-base">⚔️ Serang</span>
+                <span class="text-[10px] opacity-80">Fisik (0 MP)</span>
+            </button>
+
+            <!-- Defense -->
+            <button id="btn-defend" onclick="playerAction('defend')" class="p-3 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white rounded-xl font-bold flex flex-col items-center justify-center shadow-lg active:scale-95 transition-all border border-blue-500/40">
+                <span class="text-base">🛡️ Bertahan</span>
+                <span class="text-[10px] opacity-80">Kurangi DMG + Recover MP</span>
+            </button>
+
+            <!-- Skill Ultimate -->
+            <button id="btn-skill" onclick="playerAction('skill')" class="p-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl font-bold flex flex-col items-center justify-center shadow-lg active:scale-95 transition-all border border-amber-500/40">
+                <span class="text-base">⚡ Overdrive Skill</span>
+                <span class="text-[10px] opacity-80">Kritis Keras (25 MP)</span>
+            </button>
+
+            <!-- Healing Item / Skill -->
+            <button id="btn-heal" onclick="playerAction('heal')" class="p-3 bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-500 hover:to-green-600 text-white rounded-xl font-bold flex flex-col items-center justify-center shadow-lg active:scale-95 transition-all border border-emerald-500/40">
+                <span class="text-base">🧪 Recovery</span>
+                <span class="text-[10px] opacity-80">Pulihkan HP (20 MP)</span>
+            </button>
+        </div>
+
+        <!-- Overlay Victory / Defeat Modal -->
+        <div id="modal-overlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-50 hidden flex-col justify-center items-center p-6 text-center">
+            <div id="modal-content" class="w-full">
+                <h2 id="modal-title" class="title-font text-2xl font-black mb-2 text-white">STAGE CLEAR!</h2>
+                <p id="modal-description" class="text-slate-300 text-sm mb-6 leading-relaxed">Musuh berhasil dikalahkan.</p>
+                <button id="modal-btn" onclick="nextStageOrRestart()" class="w-full py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 font-bold text-white rounded-xl shadow-lg hover:brightness-110 active:scale-95 transition-all">
+                    LANJUT STAGE REVO
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Game State Variables
+        let currentStage = 1;
+        let isPlayerTurn = true;
+        let isGameOver = false;
+
+        // Player Stats
+        let player = {
+            maxHp: 100,
+            hp: 100,
+            maxMp: 50,
+            mp: 50,
+            atk: 25,
+            isDefending: false
+        };
+
+        // Boss Database Configurations per Stage
+        const bossConfigs = {
+            1: { name: "Bot Tutorial", avatar: "🤖", hp: 70, atk: 8, subtitle: "Stage 1 - Sangat Mudah" },
+            2: { name: "Cyber Spectre", avatar: "👻", hp: 130, atk: 14, subtitle: "Stage 2 - Menengah" },
+            3: { name: "Mecha Titan", avatar: "🦿", hp: 200, atk: 22, subtitle: "Stage 3 - Sanggup Diatasi" },
+            4: { name: "System Overlord", avatar: "👾", hp: 280, atk: 30, subtitle: "Stage 4 - Boss Terakhir Standard" },
+            5: { 
+                name: "SUPREME WNI OVERLORD (MODE EKSTREM)", 
+                avatar: "☠️", 
+                hp: 999999, 
+                atk: 9999, 
+                subtitle: "STAGE 5: WNI MODE - IMPOSSIBLE WIN" 
+            }
+        };
+
+        let currentBoss = {};
+
+        // DOM Element References
+        const stageTitleEl = document.getElementById('stage-title');
+        const turnBadgeEl = document.getElementById('turn-badge');
+        const bossNameEl = document.getElementById('boss-name');
+        const bossAvatarEl = document.getElementById('boss-avatar');
+        const bossSubtitleEl = document.getElementById('boss-subtitle');
+        const bossHpBar = document.getElementById('boss-hp-bar');
+        const bossHpText = document.getElementById('boss-hp-text');
+        
+        const playerHpBar = document.getElementById('player-hp-bar');
+        const playerHpText = document.getElementById('player-hp-text');
+        const playerMpBar = document.getElementById('player-mp-bar');
+        const playerMpText = document.getElementById('player-mp-text');
+        
+        const logContainer = document.getElementById('combat-log');
+        const battleEffect = document.getElementById('battle-effect');
+        const effectText = document.getElementById('effect-text');
+        const arena = document.getElementById('arena');
+        const bossCard = document.getElementById('boss-card');
+        const playerCard = document.getElementById('player-card');
+
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalTitle = document.getElementById('modal-title');
+        const modalDescription = document.getElementById('modal-description');
+        const modalBtn = document.getElementById('modal-btn');
+
+        // Initializer Game
+        window.onload = function() {
+            startStage(1);
+        };
+
+        function startStage(stageNum) {
+            currentStage = stageNum;
+            isGameOver = false;
+            isPlayerTurn = true;
+
+            // Load Configuration
+            const conf = bossConfigs[stageNum];
+            currentBoss = {
+                name: conf.name,
+                avatar: conf.avatar,
+                maxHp: conf.hp,
+                hp: conf.hp,
+                atk: conf.atk,
+                subtitle: conf.subtitle
+            };
+
+            // Reset Player
+            player.maxHp = 100 + (stageNum - 1) * 20;
+            player.hp = player.maxHp;
+            player.maxMp = 50 + (stageNum - 1) * 10;
+            player.mp = player.maxMp;
+            player.atk = 25 + (stageNum - 1) * 8;
+            player.isDefending = false;
+
+            // Special Visual Transformation for STAGE 5 (WNI MODE)
+            if (stageNum === 5) {
+                stageTitleEl.innerText = "STAGE 5: WNI MODE ☠️";
+                stageTitleEl.className = "title-font text-lg font-extrabold text-red-500 animate-pulse";
+                document.body.classList.add('chroma-border');
+                addLog("<span class='text-red-500 font-bold'>⚠️ BAHAYA! KESULITAN EKSTREM 'WNI MODE' DIAKTIFKAN!</span>");
+                addLog("<span class='text-red-400'>Boss AI mendapatkan kekuatan tak terhingga!</span>");
+            } else {
+                stageTitleEl.innerText = `STAGE ${stageNum}: UNGGUL`;
+                stageTitleEl.className = "title-font text-lg font-extrabold chroma-text";
+                document.body.classList.remove('chroma-border');
+            }
+
+            // Update UI Elements
+            bossNameEl.innerText = currentBoss.name;
+            bossAvatarEl.innerText = currentBoss.avatar;
+            bossSubtitleEl.innerText = currentBoss.subtitle;
+            
+            logContainer.innerHTML = "";
+            addLog(`Pertarungan dimulai! Bertarung melawan <strong>${currentBoss.name}</strong>.`);
+
+            updateUI();
+            setButtonsInteractable(true);
+            updateTurnBadge();
+        }
+
+        function updateUI() {
+            // Update Boss Bars
+            const bossHpPercent = Math.max(0, (currentBoss.hp / currentBoss.maxHp) * 100);
+            bossHpBar.style.width = `${bossHpPercent}%`;
+            bossHpText.innerText = `${Math.ceil(currentBoss.hp)} / ${currentBoss.maxHp}`;
+
+            // Update Player Bars
+            const playerHpPercent = Math.max(0, (player.hp / player.maxHp) * 100);
+            playerHpBar.style.width = `${playerHpPercent}%`;
+            playerHpText.innerText = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+
+            const playerMpPercent = Math.max(0, (player.mp / player.maxMp) * 100);
+            playerMpBar.style.width = `${playerMpPercent}%`;
+            playerMpText.innerText = `MP: ${Math.ceil(player.mp)} / ${player.maxMp}`;
+        }
+
+        function updateTurnBadge() {
+            if (isPlayerTurn) {
+                turnBadgeEl.innerText = "GILIRAN ANDA";
+                turnBadgeEl.className = "px-2.5 py-1 bg-indigo-900/60 border border-indigo-500/50 text-indigo-300 rounded-full text-xs font-bold uppercase tracking-widest animate-pulse";
+            } else {
+                turnBadgeEl.innerText = "GILIRAN AI";
+                turnBadgeEl.className = "px-2.5 py-1 bg-red-900/60 border border-red-500/50 text-red-300 rounded-full text-xs font-bold uppercase tracking-widest";
+            }
+        }
+
+        function setButtonsInteractable(enabled) {
+            const btns = ['btn-attack', 'btn-defend', 'btn-skill', 'btn-heal'];
+            btns.forEach(id => {
+                const btn = document.getElementById(id);
+                btn.disabled = !enabled;
+                if (!enabled) {
+                    btn.classList.add('opacity-40', 'cursor-not-allowed');
+                } else {
+                    btn.classList.remove('opacity-40', 'cursor-not-allowed');
+                }
+            });
+        }
+
+        // Action Handlers
+        function playerAction(type) {
+            if (!isPlayerTurn || isGameOver) return;
+
+            player.isDefending = false;
+            let targetHit = false;
+
+            if (type === 'attack') {
+                let damage = Math.floor(player.atk * (0.9 + Math.random() * 0.3));
+                currentBoss.hp -= damage;
+                showVisualEffect(`💥 -${damage}`, 'text-amber-400');
+                addLog(`Anda menyerang ${currentBoss.name} sebesar <span class='text-amber-400 font-bold'>${damage} DMG</span>.`);
+                targetHit = true;
+            } else if (type === 'defend') {
+                player.isDefending = true;
+                const mpRecover = 15;
+                player.mp = Math.min(player.maxMp, player.mp + mpRecover);
+                showVisualEffect(`🛡️ DEFENSE UP`, 'text-blue-400');
+                addLog(`Anda mengambil posisi bertahan! Damage diterima berkurang 50% & memulihkan <span class='text-cyan-400'>${mpRecover} MP</span>.`);
+            } else if (type === 'skill') {
+                if (player.mp < 25) {
+                    addLog("<span class='text-rose-400'>Mana tidak cukup! Membutuhkan 25 MP.</span>");
+                    return;
+                }
+                player.mp -= 25;
+                let damage = Math.floor(player.atk * 2.2 * (0.95 + Math.random() * 0.2));
+                currentBoss.hp -= damage;
+                triggerArenaShake();
+                showVisualEffect(`⚡ CRITICAL -${damage}`, 'text-yellow-300');
+                addLog(`OVERDRIVE! Anda mengeluarkan serangan petir sebesar <span class='text-yellow-300 font-bold'>${damage} DMG</span>!`);
+                targetHit = true;
+            } else if (type === 'heal') {
+                if (player.mp < 20) {
+                    addLog("<span class='text-rose-400'>Mana tidak cukup! Membutuhkan 20 MP.</span>");
+                    return;
+                }
+                player.mp -= 20;
+                let healAmount = Math.floor(player.maxHp * 0.45);
+                player.hp = Math.min(player.maxHp, player.hp + healAmount);
+                showVisualEffect(`💚 +${healAmount} HP`, 'text-emerald-400');
+                addLog(`Anda memulihkan kesehatan sebesar <span class='text-emerald-400 font-bold'>+${healAmount} HP</span>.`);
+            }
+
+            if (targetHit) {
+                bossCard.classList.add('shake');
+                setTimeout(() => bossCard.classList.remove('shake'), 400);
+            }
+
+            updateUI();
+
+            // Check Boss Defeat (Only Possible Stages 1-4)
+            if (currentBoss.hp <= 0 && currentStage < 5) {
+                currentBoss.hp = 0;
+                updateUI();
+                stageClear();
+                return;
+            }
+
+            // End Player Turn -> AI Turn
+            isPlayerTurn = false;
+            setButtonsInteractable(false);
+            updateTurnBadge();
+
+            setTimeout(aiTurn, 1000);
+        }
+
+        // AI Turn Execution
+        function aiTurn() {
+            if (isGameOver) return;
+
+            addLog(`<span class='text-red-400'>${currentBoss.name} sedang berpikir...</span>`);
+
+            setTimeout(() => {
+                // Special Rule Stage 5 (WNI MODE - Scripted Auto Lose for Player)
+                if (currentStage === 5) {
+                    executeWniModeAbsoluteKill();
+                    return;
+                }
+
+                // Normal Stages (1-4) Boss AI Logic
+                let baseAtk = currentBoss.atk;
+                let damage = Math.floor(baseAtk * (0.85 + Math.random() * 0.3));
+
+                if (player.isDefending) {
+                    damage = Math.floor(damage * 0.5);
+                }
+
+                player.hp -= damage;
+                playerCard.classList.add('shake');
+                setTimeout(() => playerCard.classList.remove('shake'), 400);
+
+                showVisualEffect(`🔥 -${damage}`, 'text-red-500');
+                addLog(`<span class='text-red-400'>${currentBoss.name} menyerang Anda sebesar <strong>${damage} DMG</strong>!</span>`);
+
+                updateUI();
+
+                if (player.hp <= 0) {
+                    player.hp = 0;
+                    updateUI();
+                    gameOver(false);
+                    return;
+                }
+
+                // Return Turn to Player
+                isPlayerTurn = true;
+                setButtonsInteractable(true);
+                updateTurnBadge();
+            }, 800);
+        }
+
+        // STAGE 5 EXECUTION (WNI MODE: Absolute Overpowered Unwinnable AI Strike)
+        function executeWniModeAbsoluteKill() {
+            triggerArenaShake();
+
+            // Multi-hit ultra annihilation sequence
+            let supremeHits = [9999, 88888, 999999];
+            let totalDmg = supremeHits.reduce((a, b) => a + b, 0);
+            
+            player.hp = 0;
+            updateUI();
+
+            showVisualEffect(`💀 OVERKILL -${totalDmg}`, 'text-red-600');
+            addLog(`<span class='text-red-500 font-extrabold text-sm'>[WNI MODE ULTRA SKILL] ${currentBoss.name} meluncurkan SERANGAN MUTLAK TAK TERBENDUNG!</span>`);
+            addLog(`<span class='text-red-600 font-bold'>Anda menerima ${totalDmg} OVERKILL DAMAGE! HP LANGSUNG NOL!</span>`);
+
+            setTimeout(() => {
+                gameOver(true); // Player Mandatory Defeat Screen
+            }, 1200);
+        }
+
+        // Visual FX Indicator Text Overlay
+        function showVisualEffect(text, colorClass) {
+            effectText.innerText = text;
+            effectText.className = `text-2xl sm:text-3xl font-black drop-shadow-md ${colorClass}`;
+            battleEffect.classList.remove('opacity-0');
+            battleEffect.classList.add('opacity-100');
+
+            setTimeout(() => {
+                battleEffect.classList.add('opacity-0');
+                battleEffect.classList.remove('opacity-100');
+            }, 800);
+        }
+
+        function triggerArenaShake() {
+            arena.classList.add('shake');
+            setTimeout(() => arena.classList.remove('shake'), 500);
+        }
+
+        // Logger Helper
+        function addLog(message) {
+            const entry = document.createElement('div');
+            entry.className = "text-slate-300 border-b border-slate-900/50 pb-0.5";
+            entry.innerHTML = `> ${message}`;
+            logContainer.prepend(entry);
+        }
+
+        // Stage Victory Trigger
+        function stageClear() {
+            isGameOver = true;
+            modalTitle.innerText = `STAGE ${currentStage} CLEAR!`;
+            modalTitle.className = "title-font text-2xl font-black mb-2 chroma-text";
+            modalDescription.innerHTML = `Selamat! Anda berhasil mengalahkan <strong>${currentBoss.name}</strong>.<br>Bersiaplah untuk stage berikutnya.`;
+            modalBtn.innerText = `LANJUT KE STAGE ${currentStage + 1}`;
+            modalBtn.className = "w-full py-3 px-6 bg-gradient-to-r from-emerald-500 to-teal-600 font-bold text-white rounded-xl shadow-lg hover:brightness-110 active:scale-95 transition-all";
+            modalOverlay.classList.remove('hidden');
+            modalOverlay.classList.add('flex');
+        }
+
+        // Game Over Trigger
+        function gameOver(isWniModeLoss) {
+            isGameOver = true;
+            if (isWniModeLoss) {
+                modalTitle.innerText = "KAMU MATI! (WNI MODE)";
+                modalTitle.className = "title-font text-2xl font-black mb-2 text-red-600 animate-bounce";
+                modalDescription.innerHTML = "<span class='text-red-400 font-bold'>Stage 5 (WNI MODE) Tidak Mungkin Dimenangkan!</span><br>Boss AI terlalu overpower dan menghancurkan pemain tanpa ampun secara mutlak!";
+                modalBtn.innerText = "COBA LAGI DARI STAGE 1";
+                modalBtn.className = "w-full py-3 px-6 bg-gradient-to-r from-red-600 to-rose-700 font-bold text-white rounded-xl shadow-lg hover:brightness-110 active:scale-95 transition-all";
+            } else {
+                modalTitle.innerText = "ANDA KALAH!";
+                modalTitle.className = "title-font text-2xl font-black mb-2 text-rose-500";
+                modalDescription.innerHTML = `HP Anda habis saat melawan ${currentBoss.name}.`;
+                modalBtn.innerText = "ULANGI STAGE INI";
+                modalBtn.className = "w-full py-3 px-6 bg-gradient-to-r from-slate-700 to-slate-800 font-bold text-white rounded-xl shadow-lg hover:brightness-110 active:scale-95 transition-all";
+            }
+            modalOverlay.classList.remove('hidden');
+            modalOverlay.classList.add('flex');
+        }
+
+        // Button Action Modal Transition
+        function nextStageOrRestart() {
+            modalOverlay.classList.add('hidden');
+            modalOverlay.classList.remove('flex');
+
+            if (currentStage < 5 && currentBoss.hp <= 0) {
+                startStage(currentStage + 1);
+            } else {
+                startStage(1); // Restart from stage 1 after stage 5 loss
+            }
+        }
+    </script>
+</body>
+</html>
